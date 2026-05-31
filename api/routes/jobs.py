@@ -27,7 +27,6 @@ async def create_job(
             select(Job).where(
                 Job.type == body.type,
                 Job.idempotency_key == body.idempotency_key,
-                Job.status.notin_(_TERMINAL),
             )
         )
         existing = result.scalar_one_or_none()
