@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from api.routes import health, jobs
 from db.models import Base
 from db.session import engine
-from queue.client import close_redis
+from rqueue.client import close_redis
 
 
 @asynccontextmanager

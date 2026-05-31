@@ -43,7 +43,7 @@ class Job(Base):
         Index(
             "ix_jobs_run_at_scheduled",
             "run_at",
-            postgresql_where=text("status = 'scheduled'"),
+            postgresql_where=text("status = 'scheduled'::job_status"),
         ),
     )
 
@@ -55,10 +55,14 @@ class Job(Base):
         JSONB, nullable=False, default=dict
     )
     priority: Mapped[Priority] = mapped_column(
-        SAEnum(Priority, name="job_priority"), nullable=False, default=Priority.MEDIUM
+        SAEnum(Priority, name="job_priority", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=Priority.MEDIUM,
     )
     status: Mapped[JobStatus] = mapped_column(
-        SAEnum(JobStatus, name="job_status"), nullable=False, default=JobStatus.PENDING
+        SAEnum(JobStatus, name="job_status", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=JobStatus.PENDING,
     )
     idempotency_key: Mapped[str | None] = mapped_column(
         String(255), nullable=True, default=None

@@ -4,7 +4,7 @@ import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.session import AsyncSessionLocal
-from queue.client import get_redis
+from rqueue.client import get_redis
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

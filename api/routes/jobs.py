@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import get_db, get_redis_client
 from api.schemas import JobCreate, JobResponse, ProgressUpdate
 from db.models import Job, JobStatus, Priority
-from queue.enqueue import enqueue
+from rqueue.enqueue import enqueue
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
