@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     job_default_timeout: int = 300
     scheduler_interval: float = 1.0
     worker_liveness_interval: float = 30.0
+    low_elevation_after: int = 300    # seconds in low queue before elevation to medium
+    medium_elevation_after: int = 600  # seconds in medium queue before elevation to high
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     log_level: str = "INFO"
