@@ -93,6 +93,34 @@ async def cancel_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
+@router.post("/{job_id}/retry", response_model=JobResponse)
+async def retry_job(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    r: aioredis.Redis = Depends(get_redis_client),
+):
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != JobStatus.FAILED:
+        raise HTTPException(status_code=409, detail="Only failed jobs can be retried")
+
+    job.status = JobStatus.PENDING
+    job.attempt_count = 0
+    job.error = None
+    job.result = None
+    job.started_at = None
+    job.finished_at = None
+    job.progress = None
+    await db.commit()
+    await db.refresh(job)
+
+    await enqueue(r, job.id, job.priority)
+
+    return job
+
+
 @router.patch("/{job_id}/progress", response_model=JobResponse)
 async def update_progress(
     job_id: uuid.UUID,
