@@ -25,7 +25,7 @@ except ImportError:  # pragma: no cover
     HAS_FAKEREDIS = False
 
 from db.models import Priority
-from rqueue.enqueue import DELAYED_KEY, enqueue
+from rqueue.enqueue import AGING_LOW_KEY, AGING_MEDIUM_KEY, DELAYED_KEY, enqueue
 from worker.scheduler import _PROMOTE_SCRIPT
 
 _QUEUE_HIGH = "queue:high"
@@ -54,12 +54,14 @@ async def _promote(r, now_ts: float) -> int:
     """Run the Lua promote script against *r* as if the current time is *now_ts*."""
     return await r.eval(
         _PROMOTE_SCRIPT,
-        4,
-        DELAYED_KEY,
-        _QUEUE_HIGH,
-        _QUEUE_MEDIUM,
-        _QUEUE_LOW,
-        str(now_ts),
+        6,                  # numkeys — must match the 6 KEYS the script uses
+        DELAYED_KEY,        # KEYS[1]
+        _QUEUE_HIGH,        # KEYS[2]
+        _QUEUE_MEDIUM,      # KEYS[3]
+        _QUEUE_LOW,         # KEYS[4]
+        AGING_MEDIUM_KEY,   # KEYS[5]
+        AGING_LOW_KEY,      # KEYS[6]
+        str(now_ts),        # ARGV[1]
     )
 
 
