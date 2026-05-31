@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from db.models import JobStatus, Priority
+from db.models import JobStatus, LogLevel, Priority
 
 
 class JobCreate(BaseModel):
@@ -42,3 +42,14 @@ class JobResponse(BaseModel):
     progress: float | None
     created_at: datetime
     updated_at: datetime
+
+
+class JobLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    job_id: uuid.UUID
+    level: LogLevel
+    message: str
+    meta: dict[str, Any] | None
+    created_at: datetime

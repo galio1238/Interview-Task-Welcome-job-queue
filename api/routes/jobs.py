@@ -7,8 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import get_db, get_redis_client
-from api.schemas import JobCreate, JobResponse, ProgressUpdate
-from db.models import Job, JobStatus, Priority
+from api.schemas import JobCreate, JobLogResponse, JobResponse, ProgressUpdate
+from db.models import Job, JobLog, JobStatus, LogLevel, Priority
 from rqueue.enqueue import enqueue
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -122,6 +122,22 @@ async def retry_job(
     await enqueue(r, job.id, job.priority)
 
     return job
+
+
+@router.get("/{job_id}/logs", response_model=list[JobLogResponse])
+async def get_job_logs(
+    job_id: uuid.UUID,
+    level: LogLevel | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    query = select(JobLog).where(JobLog.job_id == job_id).order_by(JobLog.created_at)
+    if level is not None:
+        query = query.where(JobLog.level == level)
+    result = await db.execute(query)
+    return result.scalars().all()
 
 
 @router.patch("/{job_id}/progress", response_model=JobResponse)

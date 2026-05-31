@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from db.models import Job, JobStatus
+from db.models import Job, JobLog, JobStatus, LogLevel
 from db.session import AsyncSessionLocal
 from jobs.registry import REGISTRY
 from rqueue.assignments import release_assignment
@@ -54,17 +54,16 @@ async def execute_job(job: Job, session: AsyncSession, r: aioredis.Redis) -> Non
     on_progress = _make_progress_callback(job.id, loop)
     handler = handler_cls()
 
-    logger.info(
-        "job.started",
-        extra={
-            "event": "job.started",
-            "job_id": str(job.id),
-            "job_type": job.type,
-            "worker_pid": os.getpid(),
-            "attempt": job.attempt_count,
-            "priority": job.priority.value,
-        },
-    )
+    meta = {
+        "event": "job.started",
+        "job_type": job.type,
+        "worker_pid": os.getpid(),
+        "attempt": job.attempt_count,
+        "priority": job.priority.value,
+    }
+    logger.info("job.started", extra={"job_id": str(job.id), **meta})
+    session.add(JobLog(job_id=job.id, level=LogLevel.INFO, message="job.started", meta=meta))
+    await session.commit()
 
     try:
         result: dict[str, Any] = await asyncio.wait_for(
@@ -83,18 +82,12 @@ async def execute_job(job: Job, session: AsyncSession, r: aioredis.Redis) -> Non
     job.result = result
     job.finished_at = now
     job.progress = 100.0
+    done_meta = {"event": "job.done", "job_type": job.type, "worker_pid": os.getpid()}
+    session.add(JobLog(job_id=job.id, level=LogLevel.INFO, message="job.done", meta=done_meta))
     await session.commit()
     await release_assignment(r, job.id)
 
-    logger.info(
-        "job.done",
-        extra={
-            "event": "job.done",
-            "job_id": str(job.id),
-            "job_type": job.type,
-            "worker_pid": os.getpid(),
-        },
-    )
+    logger.info("job.done", extra={"job_id": str(job.id), **done_meta})
 
 
 def _run_sync(handler: Any, payload: dict, on_progress: Callable) -> dict:
@@ -113,41 +106,37 @@ async def _fail_job(job: Job, session: AsyncSession, r: aioredis.Redis, exc: Exc
         job.status = JobStatus.SCHEDULED
         job.started_at = None
         job.finished_at = None
+        retry_meta = {
+            "event": "job.retry_scheduled",
+            "job_type": job.type,
+            "worker_pid": os.getpid(),
+            "attempt": job.attempt_count,
+            "delay_seconds": delay_seconds,
+            "error": str(exc),
+        }
+        session.add(JobLog(job_id=job.id, level=LogLevel.WARNING, message="job.retry_scheduled", meta=retry_meta))
         await session.commit()
 
         run_at = now + timedelta(seconds=delay_seconds)
         await enqueue(r, job.id, job.priority, run_at=run_at)
         await release_assignment(r, job.id)
 
-        logger.warning(
-            "job.retry_scheduled",
-            extra={
-                "event": "job.retry_scheduled",
-                "job_id": str(job.id),
-                "job_type": job.type,
-                "worker_pid": os.getpid(),
-                "attempt": job.attempt_count,
-                "delay_seconds": delay_seconds,
-                "error": str(exc),
-            },
-        )
+        logger.warning("job.retry_scheduled", extra={"job_id": str(job.id), **retry_meta})
     else:
         job.attempt_count += 1
         job.status = JobStatus.FAILED
         job.finished_at = now
+        dead_meta = {
+            "event": "job.dead_lettered",
+            "job_type": job.type,
+            "worker_pid": os.getpid(),
+            "attempt": job.attempt_count,
+            "error": str(exc),
+        }
+        session.add(JobLog(job_id=job.id, level=LogLevel.ERROR, message="job.dead_lettered", meta=dead_meta))
         await session.commit()
 
         await r.zadd(_DEAD_LETTER_KEY, {str(job.id): now.timestamp()})
         await release_assignment(r, job.id)
 
-        logger.error(
-            "job.dead_lettered",
-            extra={
-                "event": "job.dead_lettered",
-                "job_id": str(job.id),
-                "job_type": job.type,
-                "worker_pid": os.getpid(),
-                "attempt": job.attempt_count,
-                "error": str(exc),
-            },
-        )
+        logger.error("job.dead_lettered", extra={"job_id": str(job.id), **dead_meta})

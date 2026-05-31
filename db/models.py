@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Float, Index, Integer, SmallInteger, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -14,6 +14,12 @@ class Priority(str, enum.Enum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
+
+class LogLevel(str, enum.Enum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 class JobStatus(str, enum.Enum):
@@ -88,4 +94,29 @@ class Job(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+
+class JobLog(Base):
+    __tablename__ = "job_logs"
+    __table_args__ = (Index("ix_job_logs_job_id", "job_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("jobs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    level: Mapped[LogLevel] = mapped_column(
+        SAEnum(LogLevel, name="log_level", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True, default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
