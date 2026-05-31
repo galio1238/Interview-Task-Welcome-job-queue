@@ -59,12 +59,12 @@ async def _run_worker() -> None:
                 continue
 
             from datetime import datetime, timezone
+            now = datetime.now(tz=timezone.utc)
             job.status = JobStatus.PROCESSING
-            job.started_at = datetime.now(tz=timezone.utc)
+            job.started_at = now
             job.worker_pid = os.getpid()
+            await claim_assignment(r, job.id, os.getpid(), job.priority, now)
             await session.commit()
-
-            await claim_assignment(r, job.id, os.getpid(), job.priority, job.started_at)
 
             await execute_job(job, session, r)
 
