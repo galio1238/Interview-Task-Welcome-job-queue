@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     retry_backoff_base: int = 60
     job_default_timeout: int = 300
     scheduler_interval: float = 1.0
+    worker_liveness_interval: float = 30.0
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     log_level: str = "INFO"
