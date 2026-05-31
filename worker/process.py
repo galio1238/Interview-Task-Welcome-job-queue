@@ -10,6 +10,7 @@ from config import settings
 from db.models import Job, JobStatus
 from db.session import AsyncSessionLocal
 from jobs.registry import load_all
+from rqueue.assignments import claim_assignment
 from rqueue.client import get_redis
 from rqueue.dequeue import dequeue
 from worker.executor import execute_job
@@ -62,6 +63,8 @@ async def _run_worker() -> None:
             job.started_at = datetime.now(tz=timezone.utc)
             job.worker_pid = os.getpid()
             await session.commit()
+
+            await claim_assignment(r, job.id, os.getpid(), job.priority, job.started_at)
 
             await execute_job(job, session, r)
 

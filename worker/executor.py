@@ -15,6 +15,7 @@ from config import settings
 from db.models import Job, JobStatus
 from db.session import AsyncSessionLocal
 from jobs.registry import REGISTRY
+from rqueue.assignments import release_assignment
 from rqueue.enqueue import enqueue
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ async def execute_job(job: Job, session: AsyncSession, r: aioredis.Redis) -> Non
     job.finished_at = now
     job.progress = 100.0
     await session.commit()
+    await release_assignment(r, job.id)
 
     logger.info(
         "job.done",
@@ -115,6 +117,7 @@ async def _fail_job(job: Job, session: AsyncSession, r: aioredis.Redis, exc: Exc
 
         run_at = now + timedelta(seconds=delay_seconds)
         await enqueue(r, job.id, job.priority, run_at=run_at)
+        await release_assignment(r, job.id)
 
         logger.warning(
             "job.retry_scheduled",
@@ -135,6 +138,7 @@ async def _fail_job(job: Job, session: AsyncSession, r: aioredis.Redis, exc: Exc
         await session.commit()
 
         await r.zadd(_DEAD_LETTER_KEY, {str(job.id): now.timestamp()})
+        await release_assignment(r, job.id)
 
         logger.error(
             "job.dead_lettered",
