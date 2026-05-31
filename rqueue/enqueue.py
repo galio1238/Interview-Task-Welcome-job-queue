@@ -7,6 +7,8 @@ from db.models import Priority
 
 QUEUE_KEY = "queue:{priority}"
 DELAYED_KEY = "queue:delayed"
+AGING_LOW_KEY = "queue:aging:low"
+AGING_MEDIUM_KEY = "queue:aging:medium"
 
 
 def _queue_key(priority: Priority) -> str:
@@ -27,4 +29,9 @@ async def enqueue(
         value = f"{priority.value}:{job_id_str}"
         await r.zadd(DELAYED_KEY, {value: score})
     else:
+        now = datetime.now(tz=timezone.utc).timestamp()
         await r.lpush(_queue_key(priority), job_id_str)
+        if priority == Priority.LOW:
+            await r.zadd(AGING_LOW_KEY, {job_id_str: now})
+        elif priority == Priority.MEDIUM:
+            await r.zadd(AGING_MEDIUM_KEY, {job_id_str: now})
