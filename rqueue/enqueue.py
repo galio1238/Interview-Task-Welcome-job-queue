@@ -23,6 +23,8 @@ async def enqueue(
 
     if run_at is not None:
         score = run_at.astimezone(timezone.utc).timestamp()
-        await r.zadd(DELAYED_KEY, {job_id_str: score})
+        # Encode priority so the scheduler Lua script can route to the right queue.
+        value = f"{priority.value}:{job_id_str}"
+        await r.zadd(DELAYED_KEY, {value: score})
     else:
         await r.lpush(_queue_key(priority), job_id_str)

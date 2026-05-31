@@ -11,6 +11,8 @@ def get_redis() -> aioredis.Redis:
         _redis = aioredis.from_url(
             settings.redis_url,
             decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=None,  # BRPOP manages its own blocking timeout; no socket-level deadline
         )
     return _redis
 
