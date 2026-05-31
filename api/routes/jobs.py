@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -13,6 +14,7 @@ from rqueue.enqueue import enqueue
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 _TERMINAL = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+_IDEMPOTENCY_TTL = timedelta(hours=24)
 
 
 @router.post("", status_code=201, response_model=JobResponse)
@@ -23,10 +25,12 @@ async def create_job(
     r: aioredis.Redis = Depends(get_redis_client),
 ):
     if body.idempotency_key:
+        cutoff = datetime.now(tz=timezone.utc) - _IDEMPOTENCY_TTL
         result = await db.execute(
             select(Job).where(
                 Job.type == body.type,
                 Job.idempotency_key == body.idempotency_key,
+                Job.created_at >= cutoff,
             )
         )
         existing = result.scalar_one_or_none()

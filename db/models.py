@@ -32,13 +32,6 @@ class Base(DeclarativeBase):
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
-        Index(
-            "uq_jobs_type_idempotency_key",
-            "type",
-            "idempotency_key",
-            unique=True,
-            postgresql_where=text("idempotency_key IS NOT NULL"),
-        ),
         Index("ix_jobs_status", "status"),
         Index(
             "ix_jobs_run_at_scheduled",
