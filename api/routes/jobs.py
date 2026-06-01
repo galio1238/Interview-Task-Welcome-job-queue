@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import get_db, get_redis_client
+from api.dependencies import get_db
+from rqueue.client import get_redis
 from api.schemas import JobCreate, JobLogResponse, JobResponse, ProgressUpdate
 from db.models import Job, JobLog, JobStatus, LogLevel, Priority
 from rqueue.enqueue import enqueue
@@ -22,7 +23,7 @@ async def create_job(
     body: JobCreate,
     response: Response,
     db: AsyncSession = Depends(get_db),
-    r: aioredis.Redis = Depends(get_redis_client),
+    r: aioredis.Redis = Depends(get_redis),
 ):
     if body.idempotency_key:
         cutoff = datetime.now(tz=timezone.utc) - _IDEMPOTENCY_TTL
@@ -100,7 +101,7 @@ async def cancel_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 async def retry_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    r: aioredis.Redis = Depends(get_redis_client),
+    r: aioredis.Redis = Depends(get_redis),
 ):
     result = await db.execute(select(Job).where(Job.id == job_id))
     job = result.scalar_one_or_none()

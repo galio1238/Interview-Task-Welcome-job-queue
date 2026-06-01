@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import get_db, get_redis_client
+from api.dependencies import get_db
+from rqueue.client import get_redis
 from db.models import Job
 
 router = APIRouter(tags=["health"])
@@ -12,7 +13,7 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 async def health(
     db: AsyncSession = Depends(get_db),
-    r: aioredis.Redis = Depends(get_redis_client),
+    r: aioredis.Redis = Depends(get_redis),
 ):
     try:
         await db.execute(text("SELECT 1"))

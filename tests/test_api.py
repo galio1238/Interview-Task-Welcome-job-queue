@@ -14,7 +14,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api.dependencies import get_db, get_redis_client
+from api.dependencies import get_db
+from rqueue.client import get_redis
 from api.main import app
 from api.routes.jobs import _IDEMPOTENCY_TTL
 from db.models import Job, JobStatus, Priority
@@ -97,7 +98,7 @@ def _set_overrides(session: AsyncMock, redis: AsyncMock | None = None) -> None:
         yield session
 
     app.dependency_overrides[get_db] = _get_db
-    app.dependency_overrides[get_redis_client] = lambda: redis
+    app.dependency_overrides[get_redis] = lambda: redis
 
 
 # ---------------------------------------------------------------------------
